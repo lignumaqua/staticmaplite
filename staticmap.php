@@ -1,5 +1,6 @@
 <?php
 
+
 /**
  * staticMapLite 0.3.1
  *
@@ -21,8 +22,9 @@
  *
  * USAGE:
  *
- *  staticmap.php?center=40.714728,-73.998672&zoom=14&size=512x512&maptype=mapnik&markers=40.702147,-74.015794,blues|40.711614,-74.012318,greeng|40.718217,-73.998284,redc
+ *  staticmap.php?center=40.714728,-73.998672&zoom=14&size=512x512&maptype=mapnik&markers=40.702147,-74.015794,blues|40.711614,-74.012318,greeng|40.718217,-73.998284,redc&purge=true
  *
+ * V2 add line parameter &line=true defaults to false
  */
 
 error_reporting(0);
@@ -35,12 +37,14 @@ Class staticMapLite
     protected $maxHeight = 1024;
 
     protected $tileSize = 256;
-    protected $tileSrcUrl = array('mapnik' => 'http://tile.openstreetmap.org/{Z}/{X}/{Y}.png',
-        'osmarenderer' => 'http://otile1.mqcdn.com/tiles/1.0.0/osm/{Z}/{X}/{Y}.png',
-        'cycle' => 'http://a.tile.opencyclemap.org/cycle/{Z}/{X}/{Y}.png',
+     protected $tileSrcUrl = array(
+//        'osm'               => 'https://tile.openstreetmap.org/{Z}/{X}/{Y}.png',
+        'osm'               => 'http://tile.home.lignumaqua.net/styles/klokantech-basic/{Z}/{X}/{Y}.png',
+        'esrisat'           => 'http://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{Z}/{Y}/{X}.png',
+        'topo'              => 'https://tile.opentopomap.org/{Z}/{X}/{Y}.png',
     );
 
-    protected $tileDefaultSrc = 'mapnik';
+    protected $tileDefaultSrc = 'osm';
     protected $markerBaseDir = 'images/markers';
     protected $osmLogo = 'images/osm_logo.png';
 
@@ -79,7 +83,7 @@ Class staticMapLite
     protected $useTileCache = true;
     protected $tileCacheBaseDir = '../cache/tiles';
 
-    protected $useMapCache = true;
+    protected $useMapCache = false;
     protected $mapCacheBaseDir = '../cache/maps';
     protected $mapCacheID = '';
     protected $mapCacheFile = '';
@@ -87,6 +91,8 @@ Class staticMapLite
 
     protected $zoom, $lat, $lon, $width, $height, $markers, $image, $maptype;
     protected $centerX, $centerY, $offsetX, $offsetY;
+	protected $purge;
+    protected $line;
 
     public function __construct()
     {
@@ -97,6 +103,8 @@ Class staticMapLite
         $this->height = 350;
         $this->markers = array();
         $this->maptype = $this->tileDefaultSrc;
+        $this->purge = false;
+        $this->line = false;
     }
 
     public function parseParams()
@@ -113,16 +121,16 @@ Class staticMapLite
 
     public function parseLiteParams()
     {
-        // get zoom from GET paramter
+        // get zoom from GET parameter
         $this->zoom = $_GET['zoom'] ? intval($_GET['zoom']) : 0;
         if ($this->zoom > 18) $this->zoom = 18;
 
-        // get lat and lon from GET paramter
+        // get lat and lon from GET parameter
         list($this->lat, $this->lon) = explode(',', $_GET['center']);
         $this->lat = floatval($this->lat);
         $this->lon = floatval($this->lon);
 
-        // get size from GET paramter
+        // get size from GET parameter
         if ($_GET['size']) {
             list($this->width, $this->height) = explode('x', $_GET['size']);
             $this->width = intval($this->width);
@@ -143,6 +151,18 @@ Class staticMapLite
         }
         if ($_GET['maptype']) {
             if (array_key_exists($_GET['maptype'], $this->tileSrcUrl)) $this->maptype = $_GET['maptype'];
+        }
+
+        // get purge from 'purge' GET parameter
+        if ($_GET['purge']) {
+			$this->purge = false;
+    		    if ($_GET['purge'] == 'true') $this->purge = true;
+		}
+
+        // get line from 'line' GET parameter
+        if ($_GET['line']) {
+            $this->line = false;
+                if ($_GET['line'] == 'true') $this->line = true;
         }
     }
 
@@ -201,7 +221,13 @@ Class staticMapLite
 
         for ($x = $startX; $x <= $endX; $x++) {
             for ($y = $startY; $y <= $endY; $y++) {
-                $url = str_replace(array('{Z}', '{X}', '{Y}'), array($this->zoom, $x, $y), $this->tileSrcUrl[$this->maptype]);
+                //echo $x % ($this->zoom + 1) . "," . $y . "; ";
+                $tilex = $x % (pow(2,$this->zoom));
+                if ($tilex < 0)
+                {
+                    $tilex = $tilex + pow(2,$this->zoom);
+                }
+                $url = str_replace(array('{Z}', '{X}', '{Y}'), array($this->zoom, $tilex, $y), $this->tileSrcUrl[$this->maptype]);
                 $tileData = $this->fetchTile($url);
                 if ($tileData) {
                     $tileImage = imagecreatefromstring($tileData);
@@ -215,11 +241,16 @@ Class staticMapLite
                 imagecopy($this->image, $tileImage, $destX, $destY, 0, 0, $this->tileSize, $this->tileSize);
             }
         }
+        //exit;
     }
+    // -15,-28 ; -15,228 ; -15,484 ; 241,-28 ; 241,228 ; 241,484 ; 497,-28 ; 497,228 ; 497,484 ; 753,-28 ; 753,228 ; 753,484 ;
 
 
     public function placeMarkers()
     {
+        if ($this->line) {
+            $this->drawLine();
+        }
         // loop thru marker array
         foreach ($this->markers as $marker) {
             // set some local variables
@@ -262,11 +293,14 @@ Class staticMapLite
                 $markerImg = imagecreatefrompng($this->markerBaseDir . '/lightblue1.png');
             }
 
-            // check for shadow + create shadow recource
+            // check for shadow + create shadow resource
             if ($markerShadow && file_exists($this->markerBaseDir . '/' . $markerShadow)) {
                 $markerShadowImg = imagecreatefrompng($this->markerBaseDir . '/' . $markerShadow);
             }
-
+			// Fix up longitude to be always positive
+			//if ($markerLon < 0){
+			//	$markerLon = 360 + $markerLon;
+			//}
             // calc position
             $destX = floor(($this->width / 2) - $this->tileSize * ($this->centerX - $this->lonToTile($markerLon, $this->zoom)));
             $destY = floor(($this->height / 2) - $this->tileSize * ($this->centerY - $this->latToTile($markerLat, $this->zoom)));
@@ -283,6 +317,37 @@ Class staticMapLite
 
         };
     }
+
+
+
+    public function drawLine()
+    {
+        $lineLatPrior = 0;
+        $lineLonPrior = 0;
+        $notFirstLoop = false;
+        $color = imagecolorallocate($this->image, 255, 0, 0);
+        imagesetthickness($this->image, 2);
+        imageantialias($this->image, true);
+       // loop thru marker array
+        foreach ($this->markers as $marker) {
+            // set some local variables
+            $lineLat = $marker['lat'];
+            $lineLon = $marker['lon'];
+
+            if ($notFirstLoop) {
+                // calc positions
+                $startX = floor(($this->width / 2) - $this->tileSize * ($this->centerX - $this->lonToTile($lineLonPrior, $this->zoom)));
+                $startY = floor(($this->height / 2) - $this->tileSize * ($this->centerY - $this->latToTile($lineLatPrior, $this->zoom)));
+                $destX = floor(($this->width / 2) - $this->tileSize * ($this->centerX - $this->lonToTile($lineLon, $this->zoom)));
+                $destY = floor(($this->height / 2) - $this->tileSize * ($this->centerY - $this->latToTile($lineLat, $this->zoom)));
+                imageline($this->image, $startX, $startY, $destX, $destY, $color);
+            }
+            $notFirstLoop = true;
+            $lineLatPrior = $lineLat;
+            $lineLonPrior = $lineLon;
+        }
+    }
+
 
 
     public function tileUrlToFilename($url)
@@ -334,7 +399,7 @@ Class staticMapLite
 
     public function fetchTile($url)
     {
-        if ($this->useTileCache && ($cached = $this->checkTileCache($url))) return $cached;
+        if ($this->useTileCache && ($cached = $this->checkTileCache($url)) && !$this->purge) return $cached;
         $ch = curl_init();
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
         curl_setopt($ch, CURLOPT_USERAGENT, "Mozilla/4.0");
@@ -377,7 +442,7 @@ Class staticMapLite
         $this->parseParams();
         if ($this->useMapCache) {
             // use map cache, so check cache for map
-            if (!$this->checkMapCache()) {
+            if (!$this->checkMapCache() || $this->purge) {
                 // map is not in cache, needs to be build
                 $this->makeMap();
                 $this->mkdir_recursive(dirname($this->mapCacheIDToFilename()), 0777);
