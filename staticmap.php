@@ -38,8 +38,7 @@ Class staticMapLite
 
     protected $tileSize = 256;
      protected $tileSrcUrl = array(
-//        'osm'               => 'https://tile.openstreetmap.org/{Z}/{X}/{Y}.png',
-        'osm'               => 'http://tile.home.lignumaqua.net/styles/klokantech-basic/{Z}/{X}/{Y}.png',
+        'osm'               => 'https://tile.openstreetmap.org/{Z}/{X}/{Y}.png',
         'esrisat'           => 'http://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{Z}/{Y}/{X}.png',
         'topo'              => 'https://tile.opentopomap.org/{Z}/{X}/{Y}.png',
     );
