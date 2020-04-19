@@ -22,9 +22,11 @@
  *
  * USAGE:
  *
- *  staticmap.php?center=40.714728,-73.998672&zoom=14&size=512x512&maptype=mapnik&markers=40.702147,-74.015794,blues|40.711614,-74.012318,greeng|40.718217,-73.998284,redc&purge=true
+ *  staticmap.php?center=40.714728,-73.998672&zoom=14&size=512x512&maptype=mapnik&markers=40.702147,-74.015794,blues|40.711614,-74.012318,greeng|40.718217,-73.998284,redc&purge=true&line=false
  *
- * V2 add line parameter &line=true defaults to false
+ * Additions by Mike Wood 2019/2020
+ * V1 - Add 'purge=true' parameter (defaults to false) to force clearing and refreshing the tile cache for those coordinates. Fixes to zoom calculation.
+ * V2 - Add line parameter 'line=true' (defaults to false) to join markers with a line.
  */
 
 error_reporting(0);
